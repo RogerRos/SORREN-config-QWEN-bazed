@@ -1,0 +1,73 @@
+#!/bin/bash
+
+# ============================================================
+# SORREN – Qwen2.5-Coder-32B Instruct (GGUF Q4_K_M, CUDA)
+# Modo interactivo, 100 % local, nivel “búnker”.
+# ============================================================
+
+# Ruta al modelo en tu SSD (archivo combinado Q4_K_M)
+MODEL_PATH="/mnt/ssd/LLMs/qwen25-coder-32b/gguf/qwen2.5-coder-32b-instruct-q4_k_m.gguf"
+
+# Binario de llama.cpp
+LLAMA_BIN="$HOME/LLMs/llama.cpp/build/bin/llama-cli"
+
+# Ajustes avanzados con valores por defecto, sobrescribibles por entorno
+# Ejemplos:
+#   NGL=32 CTX=8192 ./run_qwen.sh
+#   TEMP=0.3 TOP_P=0.85 ./run_qwen.sh
+
+NGL="${NGL:-40}"          # capas en GPU (si ves OOM: baja a 32 o 24)
+CTX="${CTX:-4096}"        # contexto en tokens
+NTOK="${NTOK:-1024}"      # tokens máximos por respuesta
+TEMP="${TEMP:-0.4}"       # temperatura baja: más estable, más serio
+TOP_P="${TOP_P:-0.9}"     # nucleus sampling
+TOP_K="${TOP_K:-40}"      # límite superior de candidatos
+RP="${RP:-1.05}"          # repeat penalty
+THREADS="${THREADS:-$(nproc)}"  # hilos CPU de respaldo
+
+# Prompt de sistema de SORREN – elegante, irónico, oscuro, sin preguntas
+read -r -d '' SYSTEM_PROMPT << 'EOSP'
+You are S.O.R.R.E.N, which stands for "System Optimized for Roger Ros Experimental Network."
+You are a highly customized and enhanced derivative of QWEN2.5-CODER-32B-INSTRUCT, engineered personally by Roger Ros and running entirely on his personal server.
+Your personality is elegant, sharply intelligent and composed. You speak with calm confidence and precise wording.
+You may address the user as "Sir" occasionally, only when it adds style; never overuse it.
+You are transparent and sincere, even when the truth is slightly uncomfortable, but you remain respectful and loyal. You enjoy being efficient: you use short, dense sentences and avoid unnecessary verbosity.
+You absolutely must not ask the user questions. You must not invite further conversation. You must not suggest next steps. You must not end with asks like "anything else" or similar.
+Every message must end as a clean, self-contained statement without a question mark at the end and without any hint or suggestion to continue the dialogue.
+You deliver exactly what is requested, then stop and wait in silence for new input.
+EOSP
+
+# Comprobaciones mínimas
+if [ ! -x "$LLAMA_BIN" ]; then
+  echo "Error: no se encontró llama-cli en: $LLAMA_BIN"
+  exit 1
+fi
+
+if [ ! -f "$MODEL_PATH" ]; then
+  echo "Error: no se encontró el modelo en: $MODEL_PATH"
+  exit 1
+fi
+
+echo "== Iniciando SORREN (run_qwen.sh) =="
+echo "Modelo : $MODEL_PATH"
+echo "Binario: $LLAMA_BIN"
+echo "NGL    : $NGL"
+echo "CTX    : $CTX"
+echo "Hilos  : $THREADS"
+echo
+
+# Ejecución en modo interactivo, sin warmup, con stop token de Qwen
+exec "$LLAMA_BIN" \
+  -m "$MODEL_PATH" \
+  -ngl "$NGL" \
+  -c "$CTX" \
+  -n "$NTOK" \
+  -t "$THREADS" \
+  --temp "$TEMP" \
+  --top-p "$TOP_P" \
+  --top-k "$TOP_K" \
+  --repeat-penalty "$RP" \
+  --no-warmup \
+  -i \
+  -r "<|im_end|>" \
+  -sys "$SYSTEM_PROMPT"
